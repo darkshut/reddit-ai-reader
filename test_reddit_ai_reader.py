@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from reddit_ai_reader import Config, RedditReader, validate_subreddit
+from reddit_ai_reader import Config, RedditReader, validate_subreddit, validate_subreddit_count
 
 
 class JsonResponse(io.BytesIO):
@@ -17,12 +17,23 @@ class JsonResponse(io.BytesIO):
 class RedditReaderTests(unittest.TestCase):
     def test_config_requires_all_environment_variables(self):
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(ValueError, "CLIENT_ID"):
+            with self.assertRaisesRegex(
+                ValueError,
+                "REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_USERNAME",
+            ):
                 Config.from_environment()
 
     def test_validate_subreddit_rejects_a_url(self):
         with self.assertRaisesRegex(ValueError, "無效"):
             validate_subreddit("https://reddit.com/r/LocalLLaMA")
+
+    def test_validate_subreddit_rejects_a_non_ai_community(self):
+        with self.assertRaisesRegex(ValueError, "核准清單"):
+            validate_subreddit("unrelated")
+
+    def test_validate_subreddit_count_rejects_more_than_six(self):
+        with self.assertRaisesRegex(ValueError, "最多讀取 6 個"):
+            validate_subreddit_count(["LocalLLaMA"] * 7)
 
     def test_fetch_new_posts_uses_read_only_oauth_request(self):
         requests = []
@@ -44,4 +55,3 @@ class RedditReaderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

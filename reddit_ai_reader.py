@@ -14,7 +14,16 @@ from typing import Any, Callable
 
 TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 API_BASE_URL = "https://oauth.reddit.com"
-DEFAULT_SUBREDDITS = ("LocalLLaMA", "MachineLearning", "artificial")
+ALLOWED_SUBREDDITS = (
+    "LocalLLaMA",
+    "MachineLearning",
+    "artificial",
+    "OpenAI",
+    "ClaudeAI",
+    "ChatGPT",
+)
+DEFAULT_SUBREDDITS = ALLOWED_SUBREDDITS[:3]
+MAX_SUBREDDITS_PER_RUN = 6
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 25
 SUBREDDIT_PATTERN = re.compile(r"^[A-Za-z0-9_]+$")
@@ -35,10 +44,14 @@ class Config:
             "client_secret": os.environ.get("REDDIT_CLIENT_SECRET", "").strip(),
             "reddit_username": os.environ.get("REDDIT_USERNAME", "").strip(),
         }
-        missing = [name for name, value in values.items() if not value]
+        environment_names = {
+            "client_id": "REDDIT_CLIENT_ID",
+            "client_secret": "REDDIT_CLIENT_SECRET",
+            "reddit_username": "REDDIT_USERNAME",
+        }
+        missing = [environment_names[name] for name, value in values.items() if not value]
         if missing:
-            environment_names = ", ".join(name.upper() for name in missing)
-            raise ValueError(f"缺少必要環境變數：{environment_names}")
+            raise ValueError(f"缺少必要環境變數：{', '.join(missing)}")
         return cls(**values)
 
     @property
@@ -102,6 +115,13 @@ class RedditReader:
 def validate_subreddit(subreddit: str) -> None:
     if not SUBREDDIT_PATTERN.fullmatch(subreddit):
         raise ValueError(f"無效的 subreddit 名稱：{subreddit}")
+    if subreddit not in ALLOWED_SUBREDDITS:
+        raise ValueError(f"不在核准清單中的 subreddit：{subreddit}")
+
+
+def validate_subreddit_count(subreddits: list[str]) -> None:
+    if len(subreddits) > MAX_SUBREDDITS_PER_RUN:
+        raise ValueError(f"每次最多讀取 {MAX_SUBREDDITS_PER_RUN} 個 subreddit")
 
 
 def parse_args() -> argparse.Namespace:
@@ -114,6 +134,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     subreddits = args.subreddits or list(DEFAULT_SUBREDDITS)
+    validate_subreddit_count(subreddits)
     config = Config.from_environment()
     reader = RedditReader(config)
     access_token = reader.fetch_access_token()
@@ -129,4 +150,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
